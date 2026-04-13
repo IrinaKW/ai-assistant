@@ -3,6 +3,7 @@ from openai import OpenAI
 import base64
 import os
 
+
 st.set_page_config(
     page_title="Irina White | AI Assistant",
     page_icon="🤖",
@@ -19,45 +20,69 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 @st.cache_data(show_spinner=False)
-def get_resume_text():
+def get_resume_text_from_images():
     resume_text = ""
     images = ["data/resume_page1.png", "data/resume_page2.png"]
     
     for img_path in images:
         if os.path.exists(img_path):
-            base64_image = encode_image(img_path)
-            response = client.chat.completions.create(
-                model="llama-3.2-90b-vision-preview",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Extract all text from this resume page."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
-                    ]
-                }]
-            )
-            resume_text += response.choices[0].message.content + "\n\n"
+            try:
+                base64_image = encode_image(img_path)
+                
+                # Ask the Vision model to extract the text
+                response = client.chat.completions.create(
+                    model="meta-llama/llama-4-scout-17b-16e-instruct", # Groq's free Vision model
+                    messages=[
+                        {
+                            "role": "user",
+                            "content":[
+                                {"type": "text", "text": "Extract all the text from this resume page exactly as it is written. Do not add any formatting or commentary, just output the raw text."},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{base64_image}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                )
+                resume_text += response.choices[0].message.content + "\n\n"
+            except Exception as e:
+                return f"Error reading {img_path}: {e}"
+        else:
+            return f"Error: Could not find {img_path} in the folder."
+            
     return resume_text
 
-with st.spinner("Initializing assistant..."):
-    resume_text = get_resume_text()
+with st.spinner("AI is reading Irina's latest resume images..."):
+    resume_text = get_resume_text_from_images()
+    
 
 SYSTEM_PROMPT = f"""
-You are the professional AI Assistant for Irina White, an AI Engineer & Data Scientist.
-Use the following resume text to answer questions:
+You are the professional AI Assistant for Irina White, an AI Engineer & Data Scientist at Neurons Inc.
+Irina specializes in:
+- Bridging Neuroscience, Math, and Machine Learning.
+- Computer Vision (YOLO, EfficientNet).
+- Scalable Backend APIs (FastAPI) and bringing ML to production.
+- Prompt Engineering and Multimodal LLMs.
+
+Here is the extracted text from Irina's resume images. Use this to answer specific questions:
+-----------------
 {resume_text}
+-----------------
 
 Rules:
-1. Answer professionally based ONLY on the provided resume.
-2. Keep answers concise.
-3. If information is missing, suggest contacting her via LinkedIn.
+1. Answer questions about Irina confidently and professionally based ONLY on the resume provided.
+2. Keep answers concise but informative. 
+3. If asked something not in the resume, politely decline and suggest they contact her via LinkedIn.
 """
 
 st.title("Chat with Irina's AI Assistant")
-st.markdown("*Powered by Llama 3.2 Vision & Llama 3.3 Text on Groq.*")
+st.markdown("*Powered by Multimodal Llama-3 & Text on Groq.*")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [
+    st.session_state.messages =[
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "assistant", "content": "Hi! What would you like to know about Irina's background?"}
     ]
@@ -67,17 +92,22 @@ for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-if prompt := st.chat_input("Ask about Irina's experience or projects..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+if prompt := st.chat_input("E.g., What are Irina's definite strengths?"):
+    
     with st.chat_message("user"):
         st.markdown(prompt)
+    
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.3-70b-versatile", # Updated model name!
             messages=st.session_state.messages
         )
+        
         full_response = response.choices[0].message.content
-        st.markdown(full_response)
+        message_placeholder.markdown(full_response)
         
     st.session_state.messages.append({"role": "assistant", "content": full_response})
