@@ -27,7 +27,7 @@ def get_resume_text():
         if os.path.exists(img_path):
             base64_image = encode_image(img_path)
             response = client.chat.completions.create(
-                model="llama-3.2-11b-vision-preview",
+                model="llama-3.2-90b-vision-preview",
                 messages=[{
                     "role": "user",
                     "content": [
